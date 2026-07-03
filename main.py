@@ -125,3 +125,23 @@ def atualizar_tarefa(id: int, titulo: str = "", descricao: str = "", concluido: 
 #   # Saída:
 #       - Retorna "OK" se a tarefa foi removida
 #       - Se a tarefa NÃO existir, retornar "TAREFA NÃO EXISTE"
+@APP.delete("/tarefas/{id}")
+def apagar_tarefa(id: int):
+    global LISTA_TAREFAS
+
+    tarefa_existe = verificar_existencia_tarefa(id)
+
+    if not tarefa_existe:
+        return {"mensagem": "TAREFA NÃO EXISTE"}
+
+    tarefa = None
+    for indice in range(len(LISTA_TAREFAS)):
+        tarefa = LISTA_TAREFAS[indice]
+
+        # Sai do loop
+        if tarefa['id'] == id:
+            break
+    
+    LISTA_TAREFAS.pop(indice)
+
+    return {"mensagem": "OK"}
