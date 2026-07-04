@@ -109,11 +109,11 @@ def atualizar_tarefa(id: int, titulo: str = "", descricao: str = "", concluido: 
     if titulo != "":
         LISTA_TAREFAS[indice]['titulo'] = titulo
     
-    if descricao !=  "": 
+    if descricao !=  "":
         LISTA_TAREFAS[indice]['descricao'] = descricao
     
     if concluido == True:
-        requests.post(f"http://localhost:8001/notificar?titulo={tarefa['titulo']}&data_finalizacao={datetime.now()}")
+        requests.post(f"http://localhost:8002/notificar?titulo={tarefa['titulo']}&data_finalizacao={datetime.now()}")
 
     LISTA_TAREFAS[indice]['concluido'] = concluido
 
