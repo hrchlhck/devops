@@ -64,5 +64,6 @@ def test_verificar_tarefa_especifica():
     assert dados["concluido"] == False
 
     requisicao = CLIENT.get("/tarefas/5")
+    CLIENT.delete('/tarefas/0')
 
     assert requisicao.json() == {"mensagem": "Não existe nenhuma tarefa"}

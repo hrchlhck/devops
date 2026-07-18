@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.exceptions import HTTPException
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import requests
 import logging
@@ -30,6 +30,22 @@ file_handler.setFormatter(fmt)
 LOGGER.addHandler(stream_handler)
 LOGGER.addHandler(file_handler)
 
+#   - Quantidade total de tarefas
+#   - Quantidade de tarefas pendentes
+#   - Quantidade de tarefas concluídas
+#   - Quantidade de tarefas atualizadas
+#   - Quantidade de tarefas removidas
+#   - Tempo médio para conclusão de tarefa
+
+METRICAS = {
+    'qtde_tarefas': 0,
+    'qtde_tarefas_pendentes': 0,
+    'qtde_tarefas_concluidas': 0,
+    'qtde_tarefas_atualizadas': 0,
+    'qtde_tarefas_removidas': 0,
+    'tempo_medio_conclusao_tafefa': 0,
+}
+
 def nova_tarefa(id: int, titulo: str, descricao: str):
     """Função auxiliar para criar uma tarefa usando dicionário (`dict`)"""
     tarefa = {
@@ -37,7 +53,8 @@ def nova_tarefa(id: int, titulo: str, descricao: str):
         "titulo": titulo,
         "descricao": descricao,
         "concluido": False,
-        "criado_em": datetime.now()
+        "criado_em": datetime.now(),
+        "concluido_em": None
     }
 
     LOGGER.debug(f"Criando tarefa='{str(tarefa)}'")
@@ -101,7 +118,7 @@ def listar_tarefa_especifica(id: int):
 
 @APP.post("/tarefas", status_code=201)
 def criar_tarefa(id: int, titulo: str, descricao: str):
-    global LISTA_TAREFAS
+    global LISTA_TAREFAS, METRICAS
 
     tarefa_existe = verificar_existencia_tarefa(id)
 
@@ -116,6 +133,8 @@ def criar_tarefa(id: int, titulo: str, descricao: str):
 
     LOGGER.info(f"Rota POST '/tarefas' acessada. Tarefa id={id} criada.")
 
+    METRICAS['qtde_tarefas'] += 1
+
     return {"mensagem": "OK"}
 
 # @APP.put("/tarefas/{id}")
@@ -129,7 +148,7 @@ def criar_tarefa(id: int, titulo: str, descricao: str):
 #       - Se a tarefa NÃO existir, retornar "TAREFA NÃO EXISTE"
 @APP.put("/tarefas/{id}")
 def atualizar_tarefa(id: int, titulo: str = "", descricao: str = "", concluido: bool = False):
-    global LISTA_TAREFAS
+    global LISTA_TAREFAS, METRICAS
 
     tarefa_existe = verificar_existencia_tarefa(id)
 
@@ -152,15 +171,21 @@ def atualizar_tarefa(id: int, titulo: str = "", descricao: str = "", concluido: 
         LISTA_TAREFAS[indice]['descricao'] = descricao
     
     if concluido == True:
-        requests.post(
-            f"http://notificacoes:8000/notificar?titulo={tarefa['titulo']}&data_finalizacao={datetime.now()}",
-            timeout=10
-        )
+        METRICAS['qtde_tarefas_concluidas'] += 1
+        LISTA_TAREFAS[indice]['concluido_em'] = datetime.now()
+
+        # requests.post(
+        #     f"http://notificacoes:8000/notificar?titulo={tarefa['titulo']}&data_finalizacao={datetime.now()}",
+        #     timeout=10
+        # )
 
     LISTA_TAREFAS[indice]['concluido'] = concluido
+
     LOGGER.debug(f"Tarefa atualizada = {LISTA_TAREFAS[indice]}")
     LOGGER.info(f"Rota PUT '/tarefas/{id}' acessada. Tarefa id={id} atualizada.")
 
+    METRICAS['qtde_tarefas_atualizadas'] += 1
+    METRICAS['qtde_tarefas_pendentes'] = METRICAS['qtde_tarefas'] - METRICAS['qtde_tarefas_concluidas']
     return {"mensagem": "OK"}
 
 # @APP.delete("/tarefas")
@@ -176,7 +201,7 @@ def atualizar_tarefa(id: int, titulo: str = "", descricao: str = "", concluido: 
 #       - Se a tarefa NÃO existir, retornar "TAREFA NÃO EXISTE"
 @APP.delete("/tarefas/{id}")
 def apagar_tarefa(id: int):
-    global LISTA_TAREFAS
+    global LISTA_TAREFAS, METRICAS
 
     tarefa_existe = verificar_existencia_tarefa(id)
 
@@ -195,5 +220,39 @@ def apagar_tarefa(id: int):
     LISTA_TAREFAS.pop(indice)
 
     LOGGER.info(f"Rota DELETE '/tarefas/{id}' acessada. Tarefa id={id} removida.")
+    
+    METRICAS['qtde_tarefas_removidas'] += 1
+    METRICAS['qtde_tarefas'] -= 1
 
     return {"mensagem": "OK"}
+
+# 20 minutos para desenvolver!
+# @APP.get('/metricas')
+# Retorne todas as métricas de negócio
+#   - Quantidade total de tarefas
+#   - Quantidade de tarefas pendentes
+#   - Quantidade de tarefas concluídas
+#   - Quantidade de tarefas atualizadas
+#   - Quantidade de tarefas removidas
+#   - Tempo médio para conclusão de tarefa
+# Saída:
+#   - Retornar um dicionário com os valores calculados 
+# Pontos importantes:
+#    - Criar testes unitários para validar se a contabilização está correta (criar arquivo tests/test_metricas.py)
+#    - Incluir log de acesso à rota! (LOGGER.info)
+@APP.get("/metricas")
+def metricas():
+    tempo_medio_total = timedelta()
+    
+    for tarefa in LISTA_TAREFAS:
+        if tarefa['concluido']:
+            tempo_medio = tarefa['concluido_em'] - tarefa['criado_em']
+            tempo_medio_total += tempo_medio
+
+    if METRICAS['qtde_tarefas_concluidas'] > 0:
+        METRICAS['tempo_medio_conclusao_tarefa'] = tempo_medio_total / METRICAS['qtde_tarefas_concluidas']
+    
+    LOGGER.debug(METRICAS)
+    LOGGER.info("Rota '/metricas' acessada.")
+
+    return METRICAS
